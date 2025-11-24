@@ -10,9 +10,13 @@ import logging
 import os
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, 
+logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Reduce verbosity of third-party loggers
+logging.getLogger('werkzeug').setLevel(logging.WARNING)
+logging.getLogger('httpx').setLevel(logging.WARNING)
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -86,19 +90,19 @@ def option_chain():
         manager_key = f"{underlying}_{expiry}"
         
         if manager_key in active_managers:
-            logger.info(f"Reusing active manager for {manager_key}")
+            logger.debug(f"Reusing active manager for {manager_key}")
             manager = active_managers[manager_key]
         else:
             logger.info(f"Creating new manager for {manager_key}")
             manager = OptionChainManager(underlying, expiry)
             manager.initialize(client)
-        
+
         # Get option chain data
         chain_data = manager.get_option_chain()
-        logger.info(f"Initial chain data type: {type(chain_data)}")
-        logger.info(f"Initial chain data bool: {bool(chain_data)}")
-        logger.info(f"Initial chain data keys: {chain_data.keys() if isinstance(chain_data, dict) else 'Not a dict'}")
-        logger.info(f"Initial chain data options count: {len(chain_data.get('options', [])) if isinstance(chain_data, dict) else 'N/A'}")
+        logger.debug(f"Initial chain data type: {type(chain_data)}")
+        logger.debug(f"Initial chain data bool: {bool(chain_data)}")
+        logger.debug(f"Initial chain data keys: {chain_data.keys() if isinstance(chain_data, dict) else 'Not a dict'}")
+        logger.debug(f"Initial chain data options count: {len(chain_data.get('options', [])) if isinstance(chain_data, dict) else 'N/A'}")
         
         return render_template('option_chain.html',
                              chain_data=chain_data,
@@ -118,13 +122,13 @@ def get_expiry_dates(underlying):
         client = get_api_client()
         exchange = 'BFO' if underlying == 'SENSEX' else 'NFO'
         
-        logger.info(f"Fetching expiry for {underlying} ({exchange})")
+        logger.debug(f"Fetching expiry for {underlying} ({exchange})")
         expiry_response = client.expiry(
             symbol=underlying,
             exchange=exchange,
             instrumenttype='options'
         )
-        logger.info(f"Expiry response for {underlying}: {expiry_response}")
+        logger.debug(f"Expiry response for {underlying}: {expiry_response}")
         
         return jsonify(expiry_response)
     except Exception as e:

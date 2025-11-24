@@ -1,6 +1,6 @@
 # OpenAlgo Option Chain
 
-A standalone Flask application for visualizing real-time option chain data with market depth, built on the OpenAlgo API.
+A standalone Flask application for visualizing real-time option chain data built on top of OpenAlgo API and WebSockets.
 
 ## Features
 
@@ -12,29 +12,46 @@ A standalone Flask application for visualizing real-time option chain data with 
 
 ## Prerequisites
 
-- Python 3.8+
+- Python 3.10+
 - OpenAlgo API Key (and running OpenAlgo instance)
 
 ## Installation
 
-1.  **Clone the repository** (or navigate to the directory):
+1.  **Clone the repository**:
     ```bash
+    git clone https://github.com/marketcalls/option-chain
     cd option-chain
     ```
 
 2.  **Create a virtual environment**:
+    
+    **Windows:**
     ```bash
     python -m venv venv
-    source venv/bin/activate  # On Windows: venv\Scripts\activate
+    venv\Scripts\activate
+    ```
+
+    **macOS/Linux:**
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate
+    ```
+
+3.  **Install uv (recommended)**:
+    ```bash
+    pip install uv
     ```
 
 3.  **Install dependencies**:
-    **Method 1: Using requirements.txt**
+    **Method 1: Using uv (Recommended)**
+    Dependencies will be automatically installed when running the app.
+
+    **Method 2: Using requirements.txt**
     ```bash
     pip install -r requirements.txt
     ```
 
-    **Method 2: Using pyproject.toml**
+    **Method 3: Using pyproject.toml**
     ```bash
     pip install .
     ```
@@ -56,12 +73,17 @@ A standalone Flask application for visualizing real-time option chain data with 
 
 ## Usage
 
-1.  **Start the application**:
+1.  **Start the application using uv**:
+    ```bash
+    uv run app.py
+    ```
+
+2.  **Or using standard python**:
     ```bash
     python app.py
     ```
 
-2.  **Access the Option Chain**:
+3.  **Access the Option Chain**:
     Open your browser and navigate to `http://127.0.0.1:5800`.
 
 ## Project Structure

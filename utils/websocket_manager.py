@@ -75,7 +75,7 @@ class ProfessionalWebSocketManager:
                 "action": "authenticate",
                 "api_key": self.api_key
             }
-            logger.info(f"Authenticating...")
+            logger.debug(f"Authenticating...")
             self.ws.send(json.dumps(auth_msg))
     
     def on_message(self, ws, message):

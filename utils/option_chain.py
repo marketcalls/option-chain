@@ -76,7 +76,7 @@ class OptionChainManager:
             if self.underlying_ltp and self.underlying_ltp > 0:
                 # Calculate ATM strike from existing LTP
                 self.atm_strike = round(self.underlying_ltp / self.strike_step) * self.strike_step
-                logger.info(f"{self.underlying} LTP: {self.underlying_ltp}, ATM: {self.atm_strike} (from cached)")
+                logger.debug(f"{self.underlying} LTP: {self.underlying_ltp}, ATM: {self.atm_strike} (from cached)")
                 return self.atm_strike
             
             # Otherwise fetch underlying quote from API
@@ -92,7 +92,7 @@ class OptionChainManager:
                 # Calculate ATM strike
                 if self.underlying_ltp > 0:
                     self.atm_strike = round(self.underlying_ltp / self.strike_step) * self.strike_step
-                    logger.info(f"{self.underlying} LTP: {self.underlying_ltp}, ATM: {self.atm_strike} (from API)")
+                    logger.debug(f"{self.underlying} LTP: {self.underlying_ltp}, ATM: {self.atm_strike} (from API)")
                     return self.atm_strike
                 else:
                     logger.warning(f"Invalid LTP received for {self.underlying}: {self.underlying_ltp}")
@@ -106,7 +106,7 @@ class OptionChainManager:
     
     def generate_strikes(self):
         """Create strike list with proper tagging"""
-        logger.info(f"generate_strikes called for {self.underlying}, ATM: {self.atm_strike}")
+        logger.debug(f"generate_strikes called for {self.underlying}, ATM: {self.atm_strike}")
         if not self.atm_strike:
             logger.warning("generate_strikes skipped: ATM is 0")
             return
@@ -359,7 +359,7 @@ class OptionChainManager:
             'options': list(self.option_data.values()),
             'market_metrics': self.calculate_market_metrics()
         }
-        logger.info(f"get_option_chain returning: {len(data['options'])} options, ATM: {data['atm_strike']}")
+        logger.debug(f"get_option_chain returning: {len(data['options'])} options, ATM: {data['atm_strike']}")
         return data
     
     def update_option_tags(self):
