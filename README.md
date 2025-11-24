@@ -2,7 +2,7 @@
 
 A standalone Flask application for visualizing real-time option chain data built on top of OpenAlgo API and WebSockets.
 
-![Option Chain Screenshot](static/images/chain.png)
+![Option Chain Screenshot](https://github.com/marketcalls/option-chain/blob/master/static/images/Chain.png?raw=true)
 
 ## Features
 
