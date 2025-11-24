@@ -1,0 +1,9 @@
+Flask==3.0.3
+python-dotenv==1.0.1
+websocket-client==1.8.0
+cachetools==5.3.3
+pytz==2024.1
+openalgo==1.0.39
+numpy==2.2.4
+numba==0.63.0b1
+llvmlite==0.46.0b1

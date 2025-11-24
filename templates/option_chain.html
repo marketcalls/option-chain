@@ -1,0 +1,696 @@
+{% extends "layout.html" %}
+
+{% block title %}Option Chain{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold">Option Chain</h1>
+        <div class="flex gap-2">
+            <select id="underlyingSelect" class="select select-bordered">
+                <option value="NIFTY" {% if underlying=='NIFTY' %}selected{% endif %}>NIFTY</option>
+                <option value="BANKNIFTY" {% if underlying=='BANKNIFTY' %}selected{% endif %}>BANKNIFTY</option>
+                <option value="SENSEX" {% if underlying=='SENSEX' %}selected{% endif %}>SENSEX</option>
+            </select>
+            <select id="expirySelect" class="select select-bordered">
+                {% if available_expiries %}
+                {% for exp in available_expiries %}
+                <option value="{{ exp }}" {% if exp==expiry %}selected{% endif %}>{{ exp }}</option>
+                {% endfor %}
+                {% endif %}
+            </select>
+            <button class="btn btn-primary" onclick="refreshOptionChain()">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                    </path>
+                </svg>
+                Refresh
+            </button>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-error mb-6">
+        <svg class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span>{{ error }}</span>
+    </div>
+    {% endif %}
+
+    {% if chain_data %}
+    <!-- Market Info -->
+    <div class="stats shadow mb-6">
+        <div class="stat">
+            <div class="stat-title">{{ chain_data.underlying }} Spot</div>
+            <div class="stat-value text-primary">{{ "%.2f"|format(chain_data.underlying_ltp) }}</div>
+            <div class="stat-desc">
+                Bid: {{ "%.2f"|format(chain_data.underlying_bid) }} |
+                Ask: {{ "%.2f"|format(chain_data.underlying_ask) }}
+            </div>
+        </div>
+        <div class="stat">
+            <div class="stat-title">ATM Strike</div>
+            <div class="stat-value">{{ chain_data.atm_strike }}</div>
+            <div class="stat-desc">Expiry: {{ chain_data.expiry }}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-title">PCR</div>
+            <div
+                class="stat-value {% if chain_data.market_metrics.pcr > 1 %}text-success{% else %}text-warning{% endif %}">
+                {{ "%.2f"|format(chain_data.market_metrics.pcr) }}
+            </div>
+            <div class="stat-desc">Put/Call Ratio</div>
+        </div>
+        <div class="stat">
+            <div class="stat-title">Total Volume</div>
+            <div class="stat-value text-sm">
+                CE: {{ "{:,}".format(chain_data.market_metrics.total_ce_volume) }}
+                <br>
+                PE: {{ "{:,}".format(chain_data.market_metrics.total_pe_volume) }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Option Chain Table -->
+    <div class="overflow-x-auto shadow-xl rounded-lg">
+        <table class="table table-compact w-full">
+            <thead>
+                <tr class="bg-base-200">
+                    <!-- CE Side -->
+                    <th class="text-right">Volume</th>
+                    <th class="text-right">Bid Qty</th>
+                    <th class="text-right">Bid</th>
+                    <th class="text-right font-bold">LTP</th>
+                    <th class="text-right">Ask</th>
+                    <th class="text-right">Ask Qty</th>
+                    <th class="text-right">Spread</th>
+                    <th class="text-center bg-base-300">CE Tag</th>
+                    <!-- Strike Info -->
+                    <th class="text-center bg-base-300 font-bold">Strike</th>
+                    <!-- PE Side -->
+                    <th class="text-center bg-base-300">PE Tag</th>
+                    <th class="text-left">Spread</th>
+                    <th class="text-left">Ask Qty</th>
+                    <th class="text-left">Ask</th>
+                    <th class="text-left font-bold">LTP</th>
+                    <th class="text-left">Bid</th>
+                    <th class="text-left">Bid Qty</th>
+                    <th class="text-left">Volume</th>
+                </tr>
+            </thead>
+            <tbody id="optionChainData">
+                {% for option in chain_data.options %}
+                <tr class="hover {% if option.tag == 'ATM' %}bg-primary/10 font-bold{% elif 'ITM' in option.tag %}bg-success/5{% else %}bg-warning/5{% endif %}"
+                    data-strike="{{ option.strike }}" data-tag="{{ option.tag }}">
+                    <!-- CE Data (removed OI column) -->
+                    <td class="text-right">{{ "{:,}".format(option.ce_data.volume) }}</td>
+                    <td class="text-right">{{ option.ce_data.bid_qty }}</td>
+                    <td class="text-right text-error">{{ "%.2f"|format(option.ce_data.bid) }}</td>
+                    <td class="text-right font-bold ce-ltp">{{ "%.2f"|format(option.ce_data.ltp) }}</td>
+                    <td class="text-right text-success">{{ "%.2f"|format(option.ce_data.ask) }}</td>
+                    <td class="text-right">{{ option.ce_data.ask_qty }}</td>
+                    <td
+                        class="text-right {% if option.ce_data.spread > 1 %}text-warning{% else %}text-success{% endif %}">
+                        {{ "%.2f"|format(option.ce_data.spread) }}
+                    </td>
+                    <!-- CE Tag -->
+                    <td class="text-center bg-base-300">
+                        <span
+                            class="badge badge-sm {% if option.tag == 'ATM' %}badge-primary{% elif 'ITM' in option.tag %}badge-success{% else %}badge-warning{% endif %}">
+                            {{ option.tag }}
+                        </span>
+                    </td>
+                    <!-- Strike -->
+                    <td class="text-center bg-base-300 font-bold">{{ option.strike }}</td>
+                    <!-- PE Tag (ITM/OTM reversed for PE) -->
+                    <td class="text-center bg-base-300">
+                        <span
+                            class="badge badge-sm {% if option.tag == 'ATM' %}badge-primary{% elif 'OTM' in option.tag %}badge-success{% else %}badge-warning{% endif %}">
+                            {% if option.tag == 'ATM' %}ATM{% elif 'ITM' in option.tag %}OTM{{ option.tag[3:] }}{% else
+                            %}ITM{{ option.tag[3:] }}{% endif %}
+                        </span>
+                    </td>
+                    <!-- PE Data -->
+                    <td
+                        class="text-left {% if option.pe_data.spread > 1 %}text-warning{% else %}text-success{% endif %}">
+                        {{ "%.2f"|format(option.pe_data.spread) }}
+                    </td>
+                    <td class="text-left">{{ option.pe_data.ask_qty }}</td>
+                    <td class="text-left text-success">{{ "%.2f"|format(option.pe_data.ask) }}</td>
+                    <td class="text-left font-bold pe-ltp">{{ "%.2f"|format(option.pe_data.ltp) }}</td>
+                    <td class="text-left text-error">{{ "%.2f"|format(option.pe_data.bid) }}</td>
+                    <td class="text-left">{{ option.pe_data.bid_qty }}</td>
+                    <td class="text-left">{{ "{:,}".format(option.pe_data.volume) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- WebSocket Status -->
+    <div class="mt-6 flex justify-between items-center">
+        <div class="flex items-center gap-2">
+            <span class="text-sm text-base-content/60">Connection Status:</span>
+            <span id="wsStatus" class="badge badge-success">Disconnected</span>
+        </div>
+        <div class="text-sm text-base-content/60">
+            Last Update: <span id="lastUpdate">-</span>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Custom styles for option chain */
+    .table-compact th,
+    .table-compact td {
+        padding: 0.5rem 0.75rem;
+    }
+
+    /* Highlight spreads */
+    .spread-tight {
+        background-color: rgba(74, 222, 128, 0.1);
+    }
+
+    .spread-normal {
+        background-color: rgba(251, 191, 36, 0.1);
+    }
+
+    .spread-wide {
+        background-color: rgba(248, 113, 113, 0.1);
+    }
+
+    /* Animation for price changes */
+    .price-up {
+        animation: flash-green 1s;
+    }
+
+    .price-down {
+        animation: flash-red 1s;
+    }
+
+    @keyframes flash-green {
+        0% {
+            background-color: rgba(74, 222, 128, 0.3);
+        }
+
+        100% {
+            background-color: transparent;
+        }
+    }
+
+    @keyframes flash-red {
+        0% {
+            background-color: rgba(248, 113, 113, 0.3);
+        }
+
+        100% {
+            background-color: transparent;
+        }
+    }
+</style>
+
+<script>
+    let eventSource = null;
+    let previousData = {};
+    let expiryCache = {}; // Cache for all expiry dates
+
+    // NEW: Session management for on-demand WebSocket subscriptions
+    let optionChainSessionId = null;
+    let heartbeatInterval = null;
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function () {
+        // Preload expiry dates for all underlyings
+        preloadAllExpiries();
+
+        // Handle underlying change
+        document.getElementById('underlyingSelect').addEventListener('change', function () {
+            const underlying = this.value;
+            console.log('[UNDERLYING CHANGE] Switching to:', underlying);
+
+            // Update expiry dropdown from cache
+            updateExpiryDropdown(underlying);
+
+            // Destroy old session (will create new one after page refresh)
+            destroyOptionChainSession();
+
+            // Refresh option chain
+            refreshOptionChain();
+            startRealTimeUpdates();
+        });
+
+        // Handle expiry change
+        document.getElementById('expirySelect').addEventListener('change', function () {
+            const expiry = this.value;
+            console.log('[EXPIRY CHANGE] Changed to:', expiry);
+
+            // Destroy old session and create new one
+            destroyOptionChainSession().then(() => {
+                createOptionChainSession();
+            });
+
+            // Just restart SSE with new expiry - no need to reload page
+            startRealTimeUpdates();
+        });
+
+        // NEW: Create session on initial page load
+        setTimeout(() => {
+            createOptionChainSession();
+        }, 2000);  // Wait 2 seconds for expiries to load
+    });
+
+    // Preload expiry dates for all underlyings
+    async function preloadAllExpiries() {
+        const underlyings = ['NIFTY', 'BANKNIFTY', 'SENSEX'];
+        console.log('[EXPIRY PRELOAD] Loading expiry dates for all underlyings...');
+
+        // Get currently selected values from server-rendered dropdown (before we replace it)
+        const currentUnderlying = document.getElementById('underlyingSelect').value;
+        const currentExpiry = document.getElementById('expirySelect').value;
+        console.log('[EXPIRY PRELOAD] Preserving current selection:', currentUnderlying, currentExpiry);
+
+        try {
+            // Fetch all expiries in parallel
+            const promises = underlyings.map(underlying =>
+                fetch(`/trading/api/option-chain/expiry/${underlying}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success' && data.data) {
+                            expiryCache[underlying] = data.data;
+                            console.log(`[EXPIRY PRELOAD] Loaded ${data.data.length} expiries for ${underlying}`);
+                        } else {
+                            expiryCache[underlying] = [];
+                            console.error(`[EXPIRY PRELOAD] Failed to load expiries for ${underlying}:`, data);
+                        }
+                    })
+                    .catch(error => {
+                        expiryCache[underlying] = [];
+                        console.error(`[EXPIRY PRELOAD] Error loading expiries for ${underlying}:`, error);
+                    })
+            );
+
+            await Promise.all(promises);
+            console.log('[EXPIRY PRELOAD] All expiries loaded:', expiryCache);
+
+            // Update expiry dropdown, preserving the server-rendered selection
+            updateExpiryDropdown(currentUnderlying, currentExpiry);
+
+            // Start real-time updates
+            startRealTimeUpdates();
+
+        } catch (error) {
+            console.error('[EXPIRY PRELOAD] Error preloading expiries:', error);
+        }
+    }
+
+    // Update expiry dropdown from cache
+    function updateExpiryDropdown(underlying, preserveExpiry = null) {
+        const expirySelect = document.getElementById('expirySelect');
+        const expiries = expiryCache[underlying] || [];
+
+        // Use preserved expiry if provided, otherwise try to get current value
+        const targetExpiry = preserveExpiry || expirySelect.value;
+
+        console.log(`[EXPIRY UPDATE] Updating dropdown for ${underlying} with ${expiries.length} expiries, target expiry:`, targetExpiry);
+
+        if (expiries.length > 0) {
+            // Clear and populate
+            expirySelect.innerHTML = '';
+
+            let expiryFound = false;
+
+            expiries.forEach((expiry, index) => {
+                const option = document.createElement('option');
+                option.value = expiry;
+                option.textContent = expiry;
+
+                // Select the target expiry if it matches, otherwise select first
+                if (expiry === targetExpiry) {
+                    option.selected = true;
+                    expiryFound = true;
+                    console.log('[EXPIRY UPDATE] Selected expiry:', expiry);
+                } else if (index === 0 && !targetExpiry) {
+                    option.selected = true;
+                    console.log('[EXPIRY UPDATE] Selected first expiry (no target):', expiry);
+                }
+
+                expirySelect.appendChild(option);
+            });
+
+            // If target expiry wasn't found, select the first one
+            if (!expiryFound && targetExpiry && expiries.length > 0) {
+                console.log('[EXPIRY UPDATE] Target expiry not found, selecting first:', expiries[0]);
+                expirySelect.value = expiries[0];
+            }
+
+            expirySelect.disabled = false;
+        } else {
+            expirySelect.innerHTML = '<option>No expiry dates available</option>';
+            expirySelect.disabled = true;
+        }
+    }
+
+    function startRealTimeUpdates() {
+        // Close existing connection if any
+        if (eventSource) {
+            eventSource.close();
+        }
+
+        const underlying = document.getElementById('underlyingSelect').value;
+        const expiry = document.getElementById('expirySelect').value;
+
+        console.log('[SSE START] Underlying:', underlying, 'Expiry:', expiry);
+
+        // Update status to connecting
+        updateStatus('Connecting...', 'badge-warning');
+
+        // Create SSE connection - using the /stream/<underlying> endpoint with credentials
+        // Include expiry as query parameter if available
+        const sseUrl = expiry ?
+            `/trading/api/option-chain/stream/${underlying}?expiry=${encodeURIComponent(expiry)}` :
+            `/trading/api/option-chain/stream/${underlying}`;
+
+        console.log('[SSE START] Connecting to:', sseUrl);
+
+        eventSource = new EventSource(sseUrl, {
+            withCredentials: true
+        });
+
+        eventSource.onopen = function () {
+            console.log('SSE Connection opened');
+            updateStatus('Connected', 'badge-success');
+        };
+
+        eventSource.onmessage = function (event) {
+            // console.log('[SSE] Message received:', event.data.substring(0, 200));
+            try {
+                const data = JSON.parse(event.data);
+
+                if (data.status === 'inactive') {
+                    console.log('[SSE] Option chain inactive:', data.message);
+                    updateStatus('Inactive', 'badge-warning');
+                    return;
+                }
+
+                if (data.status === 'error') {
+                    console.error('[SSE] Error:', data.message);
+                    updateStatus('Error', 'badge-error');
+                    return;
+                }
+
+                // Update the option chain display
+                updateOptionChain(data);
+                updateStatus('Connected', 'badge-success');
+                document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+            } catch (e) {
+                console.error('[SSE] Parse error:', e, 'Raw data:', event.data);
+            }
+        };
+
+        eventSource.onerror = function (error) {
+            console.error('SSE Connection error:', error);
+            updateStatus('Disconnected', 'badge-error');
+            // Try to reconnect after 5 seconds
+            setTimeout(function () {
+                if (eventSource.readyState === EventSource.CLOSED) {
+                    console.log('Attempting to reconnect...');
+                    startRealTimeUpdates();
+                }
+            }, 5000);
+        };
+    }
+
+    function updateStatus(status, badgeClass) {
+        const statusElement = document.querySelector('#wsStatus');
+        if (statusElement) {
+            statusElement.textContent = status;
+            statusElement.className = `badge ${badgeClass}`;
+        }
+    }
+
+    function updateOptionChain(data) {
+        // Update market info
+        updateMarketInfo(data);
+
+        // Update option chain table
+        if (data.options) {
+            data.options.forEach((option, index) => {
+                updateOptionRow(option);
+            });
+        }
+    }
+
+    function updateMarketInfo(data) {
+        // Update spot price
+        const spotElement = document.querySelector('.stat-value.text-primary');
+        if (spotElement && data.underlying_ltp) {
+            const oldValue = parseFloat(spotElement.textContent) || 0;
+            const newValue = data.underlying_ltp;
+            spotElement.textContent = newValue.toFixed(2);
+
+            // Add animation for spot price changes
+            if (oldValue !== newValue) {
+                spotElement.classList.add(newValue > oldValue ? 'text-success' : 'text-error');
+                setTimeout(() => {
+                    spotElement.classList.remove('text-success', 'text-error');
+                    spotElement.classList.add('text-primary');
+                }, 1000);
+            }
+        }
+
+        // Update ATM strike
+        const atmElement = document.querySelector('.stat:nth-child(2) .stat-value');
+        if (atmElement && data.atm_strike) {
+            atmElement.textContent = data.atm_strike;
+        }
+
+        // Update PCR
+        const pcrElement = document.querySelector('.stat:nth-child(3) .stat-value');
+        if (pcrElement && data.market_metrics && data.market_metrics.pcr !== undefined) {
+            pcrElement.textContent = data.market_metrics.pcr.toFixed(2);
+
+            // Update PCR color based on value
+            pcrElement.classList.remove('text-success', 'text-warning');
+            if (data.market_metrics.pcr > 1) {
+                pcrElement.classList.add('text-success');
+            } else {
+                pcrElement.classList.add('text-warning');
+            }
+        }
+
+        // Update Total Volume
+        const volumeElement = document.querySelector('.stat:nth-child(4) .stat-value');
+        if (volumeElement && data.market_metrics) {
+            const ceVolume = data.market_metrics.total_ce_volume || 0;
+            const peVolume = data.market_metrics.total_pe_volume || 0;
+            volumeElement.innerHTML = `CE: ${ceVolume.toLocaleString()}<br>PE: ${peVolume.toLocaleString()}`;
+        }
+    }
+
+    function updateOptionRow(option) {
+        // Convert strike to string to match HTML attribute
+        const strikeStr = String(option.strike);
+
+        // Try both the original value and string version
+        let row = document.querySelector(`tr[data-strike="${option.strike}"]`);
+        if (!row) {
+            row = document.querySelector(`tr[data-strike="${strikeStr}"]`);
+        }
+
+        if (!row) {
+            return;
+        }
+
+        // Get all cells in the row
+        const cells = row.querySelectorAll('td');
+
+        // Update CE data (cells 0-6)
+        cells[0].textContent = (option.ce_data.volume || 0).toLocaleString();  // Volume
+        cells[1].textContent = (option.ce_data.bid_qty || 0).toLocaleString(); // Bid Qty
+        cells[2].textContent = (option.ce_data.bid || 0).toFixed(2);          // Bid
+
+        // CE LTP with animation (cell 3)
+        const oldCeLtp = parseFloat(cells[3].textContent) || 0;
+        const newCeLtp = option.ce_data.ltp || 0;
+        if (oldCeLtp !== newCeLtp) {
+            cells[3].textContent = newCeLtp.toFixed(2);
+            cells[3].classList.add(newCeLtp > oldCeLtp ? 'price-up' : 'price-down');
+            setTimeout(() => {
+                cells[3].classList.remove('price-up', 'price-down');
+            }, 1000);
+        }
+
+        cells[4].textContent = (option.ce_data.ask || 0).toFixed(2);          // Ask
+        cells[5].textContent = (option.ce_data.ask_qty || 0).toLocaleString(); // Ask Qty
+        cells[6].textContent = (option.ce_data.spread || 0).toFixed(2);       // Spread
+
+        // Skip cells 7, 8, 9 (CE Tag, Strike, PE Tag) - they don't change
+
+        // Update PE data (cells 10-16)
+        cells[10].textContent = (option.pe_data.spread || 0).toFixed(2);       // Spread
+        cells[11].textContent = (option.pe_data.ask_qty || 0).toLocaleString(); // Ask Qty
+        cells[12].textContent = (option.pe_data.ask || 0).toFixed(2);          // Ask
+
+        // PE LTP with animation (cell 13)
+        const oldPeLtp = parseFloat(cells[13].textContent) || 0;
+        const newPeLtp = option.pe_data.ltp || 0;
+        if (oldPeLtp !== newPeLtp) {
+            cells[13].textContent = newPeLtp.toFixed(2);
+            cells[13].classList.add(newPeLtp > oldPeLtp ? 'price-up' : 'price-down');
+            setTimeout(() => {
+                cells[13].classList.remove('price-up', 'price-down');
+            }, 1000);
+        }
+
+        cells[14].textContent = (option.pe_data.bid || 0).toFixed(2);          // Bid
+        cells[15].textContent = (option.pe_data.bid_qty || 0).toLocaleString(); // Bid Qty
+        cells[16].textContent = (option.pe_data.volume || 0).toLocaleString();  // Volume
+    }
+
+    function refreshOptionChain() {
+        const underlying = document.getElementById('underlyingSelect').value;
+        const expiry = document.getElementById('expirySelect').value;
+
+        window.location.href = `/trading/option-chain?underlying=${underlying}&expiry=${expiry}`;
+    }
+
+    // ==================== SESSION MANAGEMENT FOR ON-DEMAND WEBSOCKET ====================
+
+    async function createOptionChainSession() {
+        const underlying = document.getElementById('underlyingSelect').value;
+        const expiry = document.getElementById('expirySelect').value;
+
+        if (!expiry) {
+            console.log('[SESSION] No expiry selected, skipping session creation');
+            return;
+        }
+
+        try {
+            console.log(`[SESSION] Creating session for ${underlying} ${expiry}...`);
+
+            const response = await fetch('/trading/api/option-chain-session/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    underlying: underlying,
+                    expiry: expiry,
+                    num_strikes: 20  // 20 ITM + 20 OTM strikes
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                optionChainSessionId = data.session_id;
+                console.log(`[SESSION] Created session ${optionChainSessionId}, subscribed to ${data.subscribed_symbols} symbols`);
+
+                // Start heartbeat (every 30 seconds)
+                startHeartbeat();
+            } else {
+                console.error('[SESSION] Failed to create session:', data.message);
+            }
+        } catch (error) {
+            console.error('[SESSION] Error creating session:', error);
+        }
+    }
+
+    function startHeartbeat() {
+        // Clear existing heartbeat if any
+        if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+        }
+
+        // Send heartbeat every 30 seconds
+        heartbeatInterval = setInterval(async () => {
+            if (!optionChainSessionId) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/trading/api/option-chain-session/heartbeat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        session_id: optionChainSessionId
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    console.log('[SESSION] Heartbeat sent successfully');
+                } else {
+                    console.warn('[SESSION] Heartbeat failed:', data.message);
+                    // Session may have expired, stop heartbeat
+                    clearInterval(heartbeatInterval);
+                    heartbeatInterval = null;
+                    optionChainSessionId = null;
+                }
+            } catch (error) {
+                console.error('[SESSION] Error sending heartbeat:', error);
+            }
+        }, 30000);  // 30 seconds
+
+        console.log('[SESSION] Heartbeat started (30-second interval)');
+    }
+
+    async function destroyOptionChainSession() {
+        if (!optionChainSessionId) {
+            return;
+        }
+
+        try {
+            console.log(`[SESSION] Destroying session ${optionChainSessionId}...`);
+
+            // Stop heartbeat
+            if (heartbeatInterval) {
+                clearInterval(heartbeatInterval);
+                heartbeatInterval = null;
+            }
+
+            // Destroy session on server
+            const response = await fetch('/trading/api/option-chain-session/destroy', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    session_id: optionChainSessionId
+                })
+            });
+
+            const data = await response.json();
+            console.log('[SESSION] Session destroyed:', data.message);
+
+            optionChainSessionId = null;
+        } catch (error) {
+            console.error('[SESSION] Error destroying session:', error);
+        }
+    }
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', function () {
+        // Destroy session (unsubscribe from symbols)
+        if (optionChainSessionId) {
+            // Use sendBeacon for reliable delivery during page unload
+            const data = JSON.stringify({ session_id: optionChainSessionId });
+            navigator.sendBeacon('/trading/api/option-chain-session/destroy', data);
+            console.log('[SESSION] Session destroy beacon sent');
+        }
+
+        // Close EventSource
+        if (eventSource) {
+            eventSource.close();
+        }
+    });
+</script>
+{% endblock %}

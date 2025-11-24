@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block layout %}
+<div class="min-h-screen flex flex-col">
+    <!-- Navbar -->
+    <nav class="h-16 bg-base-200 border-b border-base-300 flex items-center justify-between px-6">
+        <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                <span class="text-primary-content font-bold text-lg">OC</span>
+            </div>
+            <span class="text-lg font-semibold">OptionChain</span>
+        </div>
+
+        <!-- Theme Controller -->
+        <button class="btn btn-sm btn-ghost theme-controller" type="button">
+            <svg class="theme-icon w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+            </svg>
+        </button>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-6">
+        {% block content %}{% endblock %}
+    </main>
+</div>
+{% endblock %}
