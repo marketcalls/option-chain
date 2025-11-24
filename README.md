@@ -2,6 +2,8 @@
 
 A standalone Flask application for visualizing real-time option chain data built on top of OpenAlgo API and WebSockets.
 
+![Option Chain Screenshot](static/images/chain.png)
+
 ## Features
 
 - **Real-time Data**: Live option chain updates via Server-Sent Events (SSE).
